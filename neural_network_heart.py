@@ -67,8 +67,8 @@ class NeuralNetwork:
 data = pd.read_csv("heart.csv")
 
 # Prepare the features and labels
-X = data.drop("target", axis=1).values  # Features
-y = data["target"].values.reshape(-1, 1)  # Target
+X = data.drop("num", axis=1).values  # Features
+y = data["num"].values.reshape(-1, 1)  # Num
 
 # Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
