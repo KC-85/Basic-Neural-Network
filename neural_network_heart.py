@@ -1,18 +1,33 @@
-# neural_network_heart.py
-
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-# Define the sigmoid activation function and its derivative
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+# Load the Heart Disease dataset
+data = pd.read_csv("heart.csv")
 
-def sigmoid_derivative(x):
-    return x * (1 - x)
+# Print unique values in each column to identify categorical features
+print("Unique values in each column:")
+for col in data.columns:
+    print(f"{col}: {data[col].unique()}")
 
-# Neural Network class definition
+# Encode categorical columns to numeric using pd.get_dummies
+# Columns to be encoded: "sex", "cp", "restecg", "thal"
+data_encoded = pd.get_dummies(data, columns=["sex", "cp", "restecg", "thal"], drop_first=True)
+
+# Update feature and target matrices
+X = data_encoded.drop("num", axis=1).values  # Features
+y = data_encoded["num"].values.reshape(-1, 1)  # Target
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Normalize the features
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Define the Neural Network class
 class NeuralNetwork:
     def __init__(self, input_size, hidden_size, output_size):
         # Initialize weights and biases
@@ -32,7 +47,7 @@ class NeuralNetwork:
         
         return final_output
 
-    def backward(self, X, y, output, learning_rate=0.1):
+    def backward(self, X, y, output, learning_rate=0.01):
         # Calculate the error
         output_error = y - output
         output_delta = output_error * sigmoid_derivative(output)
@@ -63,26 +78,19 @@ class NeuralNetwork:
     def predict(self, X):
         return self.forward(X)
 
-# Load the Heart Disease dataset
-data = pd.read_csv("heart.csv")
 
-# Prepare the features and labels
-X = data.drop("num", axis=1).values  # Features
-y = data["num"].values.reshape(-1, 1)  # Num
+# Define the sigmoid activation function and its derivative
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-# Split the dataset into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+def sigmoid_derivative(x):
+    return x * (1 - x)
 
-# Normalize the features
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-
-# Define and train the neural network
+# Initialize and train the neural network
 nn = NeuralNetwork(input_size=X_train.shape[1], hidden_size=10, output_size=1)
 nn.train(X_train, y_train, epochs=5000, learning_rate=0.01)
 
-# Evaluate on the test set
+# Evaluate the model on the test set
 predictions = nn.predict(X_test)
 predictions = (predictions > 0.5).astype(int)  # Convert probabilities to binary (0/1)
 
