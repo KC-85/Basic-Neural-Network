@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-
 def load_and_preprocess_data(filepath):
     """
     Load the dataset from a CSV file and preprocess it for training.
@@ -23,7 +22,21 @@ def load_and_preprocess_data(filepath):
     for col in data.columns:
         print(f"{col}: {data[col].unique()}")
 
-    # Encode categorical columns using pd.get_dummies
+    # Handle any unexpected non-numeric columns
+    non_numeric_columns = data.select_dtypes(include=['object']).columns
+    if len(non_numeric_columns) > 0:
+        print(f"⚠️ Detected non-numeric columns: {list(non_numeric_columns)}. These will be dropped or encoded.")
+        for col in non_numeric_columns:
+            # If the column is irrelevant for model training, drop it
+            if col.lower() in ["location", "hospital_name", "patient_name"]:  # Adjust as needed
+                print(f"❌ Dropping non-relevant column: {col}")
+                data = data.drop([col], axis=1)
+            else:
+                # Otherwise, convert categorical string columns using one-hot encoding
+                print(f"🔄 Encoding column: {col}")
+                data = pd.get_dummies(data, columns=[col], drop_first=True)
+
+    # Encode known categorical columns using pd.get_dummies
     data_encoded = pd.get_dummies(data, columns=["sex", "cp", "restecg", "thal"], drop_first=True)
 
     # Separate features and target
