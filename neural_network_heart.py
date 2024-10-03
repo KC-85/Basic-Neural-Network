@@ -1,178 +1,160 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
-from imblearn.over_sampling import SMOTE
-from sklearn.linear_model import LogisticRegression
-
-# 🔄 Analyze Data Distribution Function
-def analyze_data_distribution(y_train, y_test):
-    print("\n💡 Training Data Distribution:")
-    print(pd.Series(y_train.flatten()).value_counts())
-    print("\n💡 Test Data Distribution:")
-    print(pd.Series(y_test.flatten()).value_counts())
+import plotly.graph_objs as go
 
 
-# 🔄 Check for Missing Values
-def check_missing_values(data):
-    print("\n🔍 Checking for missing values...")
-    missing_values = data.isna().sum()
-    print(missing_values[missing_values > 0])  # Display columns with NaNs
-
-
-# 🔄 Data Preprocessing Function
-def load_and_preprocess_data(filepath):
-    data = pd.read_csv(filepath)
-    print("📂 Columns in the original dataset:", data.columns)
-    print("🔍 Inspecting columns for non-numeric values:")
-    non_numeric_columns = data.select_dtypes(include=['object']).columns
-    for col in non_numeric_columns:
-        unique_values = data[col].unique()
-        print(f"Column '{col}' has non-numeric values: {unique_values[:5]}... (Total Unique: {len(unique_values)})")
-
-    # Drop non-relevant columns
-    columns_to_drop = ["location", "hospital_name", "patient_name"]
-    for col in columns_to_drop:
-        if col in data.columns:
-            print(f"❌ Dropping non-relevant column: {col}")
-            data = data.drop([col], axis=1)
-
-    # One-hot encode categorical features
-    columns_to_encode = ["sex", "cp", "restecg", "thal"]
-    data_encoded = pd.get_dummies(data, columns=columns_to_encode, drop_first=True)
-
-    # Separate features and target
-    X = data_encoded.drop("num", axis=1).values
-    y = data_encoded["num"].values.reshape(-1, 1)
-
-    # Ensure all features are numeric before imputation
-    X = pd.DataFrame(X).apply(pd.to_numeric, errors='coerce').values
-
-    # Impute missing values using the mean strategy
-    imputer = SimpleImputer(strategy='mean')
-    X = imputer.fit_transform(X)
-
-    # Train-Test Split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Normalize features
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    return X_train, X_test, y_train, y_test
-
-
-# Define Activation Functions and Their Derivatives
+# 🔄 Activation Functions and Their Derivatives
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 def sigmoid_derivative(x):
     return x * (1 - x)
 
-def relu(x):
-    return np.maximum(0, x)
+def leaky_relu(x, alpha=0.01):
+    return np.where(x > 0, x, alpha * x)
 
-def relu_derivative(x):
-    return np.where(x > 0, 1, 0)
+def leaky_relu_derivative(x, alpha=0.01):
+    return np.where(x > 0, 1, alpha)
+
+# 🔄 Dictionary to Select Activation Functions
+activation_functions = {
+    "sigmoid": (sigmoid, sigmoid_derivative),
+    "leaky_relu": (leaky_relu, leaky_relu_derivative)
+}
+
+# 🔄 Binary Cross-Entropy Loss Function and Its Derivative
+def binary_cross_entropy(y_true, y_pred):
+    epsilon = 1e-9  # Prevent log(0)
+    y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+    return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+
+def binary_cross_entropy_derivative(y_true, y_pred):
+    epsilon = 1e-9  # Prevent division by zero
+    y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+    return (y_pred - y_true) / (y_pred * (1 - y_pred))
 
 
-# Neural Network Class with Two Hidden Layers and Correct Matrix Shapes
+# 🔄 Neural Network Class with Optimizations and Flexibility
 class NeuralNetwork:
-    def __init__(self, input_size, hidden_size1, hidden_size2, output_size):
-        # Initialize weights and biases with correct dimensions
-        self.weights_input_hidden1 = np.random.randn(input_size, hidden_size1)  # Shape: (input_size, hidden_size1)
-        self.weights_hidden1_hidden2 = np.random.randn(hidden_size1, hidden_size2)  # Shape: (hidden_size1, hidden_size2)
-        self.weights_hidden2_output = np.random.randn(hidden_size2, output_size)  # Shape: (hidden_size2, output_size)
+    def __init__(self, layers, activation="leaky_relu"):
+        print("🔍 Initializing Neural Network...")
+        self.layers = layers
+        self.num_layers = len(layers)
+        self.weights = []
+        self.biases = []
+        self.activation = activation_functions[activation][0]
+        self.activation_derivative = activation_functions[activation][1]
+        
+        # Initialize weights and biases using He Initialization
+        for i in range(self.num_layers - 1):
+            self.weights.append(np.random.randn(layers[i], layers[i + 1]) * np.sqrt(2 / layers[i]))
+            self.biases.append(np.zeros((1, layers[i + 1])))
 
-        # Initialize biases
-        self.bias_hidden1 = np.zeros(hidden_size1)
-        self.bias_hidden2 = np.zeros(hidden_size2)
-        self.bias_output = np.zeros(output_size)
+        print(f"✅ Network Initialized with Layers: {self.layers} and Activation: {activation}")
 
     def forward(self, X):
-        """Forward pass through the network."""
-        self.hidden_input1 = np.dot(X, self.weights_input_hidden1) + self.bias_hidden1
-        self.hidden_output1 = relu(self.hidden_input1)
+        print("🔄 Performing Forward Pass...")
+        activations = [X]
+        for i, (W, b) in enumerate(zip(self.weights, self.biases)):
+            Z = np.dot(activations[-1], W) + b
+            # Use sigmoid for the last layer (output layer), otherwise use chosen activation
+            A = sigmoid(Z) if i == self.num_layers - 2 else self.activation(Z)
+            activations.append(A)
+        return activations
 
-        self.hidden_input2 = np.dot(self.hidden_output1, self.weights_hidden1_hidden2) + self.bias_hidden2
-        self.hidden_output2 = relu(self.hidden_input2)
+    def backward(self, X, y, activations, learning_rate=0.001):
+        print("🔄 Performing Backward Pass...")
+        dA = binary_cross_entropy_derivative(y, activations[-1])  # Loss derivative
 
-        final_input = np.dot(self.hidden_output2, self.weights_hidden2_output) + self.bias_output
-        final_output = sigmoid(final_input)
-        return final_output
+        for i in reversed(range(self.num_layers - 1)):
+            dZ = dA * (sigmoid_derivative(activations[i + 1]) if i == self.num_layers - 2 else self.activation_derivative(activations[i + 1]))
+            dW = np.dot(activations[i].T, dZ)
+            db = np.sum(dZ, axis=0, keepdims=True)
 
-    def backward(self, X, y, output, learning_rate=0.001):
-        """Backward pass for updating weights and biases."""
-        # Calculate errors and deltas for each layer
-        output_error = y - output  # Shape should be (samples, 1)
-        output_delta = output_error * sigmoid_derivative(output)  # Shape: (samples, 1)
+            # Gradient Clipping
+            dW = np.clip(dW, -1, 1)
+            db = np.clip(db, -1, 1)
 
-         # Debugging print statements for output layer
-        print(f"🔍 Shape of output: {output.shape}")  # Shape of output (samples, 1)
-        print(f"🔍 Shape of output_error: {output_error.shape}")  # Should match (samples, 1)
-        print(f"🔍 Shape of output_delta: {output_delta.shape}")  # Should match (samples, 1)
-        print(f"🔍 Shape of weights_hidden2_output: {self.weights_hidden2_output.shape}")  # Should be (hidden_size2, 1)
+            # Update weights and biases
+            self.weights[i] -= learning_rate * dW
+            self.biases[i] -= learning_rate * db
 
-        # Calculate hidden layer errors and deltas
-        hidden_error2 = np.dot(output_delta, self.weights_hidden2_output.T)  # Shape should be (samples, hidden_size2)
-        hidden_delta2 = hidden_error2 * relu_derivative(self.hidden_output2)
+            # Calculate dA for the next layer (moving backwards)
+            dA = np.dot(dZ, self.weights[i].T)
 
-         # Debugging print statements for second hidden layer
-        print(f"🔍 Shape of hidden_error2: {hidden_error2.shape}")  # Should match (samples, hidden_size2)
-        print(f"🔍 Shape of hidden_delta2: {hidden_delta2.shape}")  # Should match (samples, hidden_size2)
+    def train(self, X, y, epochs=1000, learning_rate=0.001, verbose=True):
+        print("🚀 Starting Training...")
+        self.loss_history = []
 
-        hidden_error1 = np.dot(hidden_delta2, self.weights_hidden1_hidden2.T)  # Shape should be (samples, hidden_size1)
-        hidden_delta1 = hidden_error1 * relu_derivative(self.hidden_output1)
-
-        # Debugging print statements for first hidden layer
-        print(f"🔍 Shape of hidden_error1: {hidden_error1.shape}")  # Should match (samples, hidden_size1)
-        print(f"🔍 Shape of hidden_delta1: {hidden_delta1.shape}")  # Should match (samples, hidden_size1)
-
-        # Update the weights and biases
-        self.weights_hidden2_output += np.dot(self.hidden_output2.T, output_delta) * learning_rate
-        self.bias_output += np.sum(output_delta, axis=0) * learning_rate
-
-        self.weights_hidden1_hidden2 += np.dot(self.hidden_output1.T, hidden_delta2) * learning_rate
-        self.bias_hidden2 += np.sum(hidden_delta2, axis=0) * learning_rate
-
-        self.weights_input_hidden1 += np.dot(X.T, hidden_delta1) * learning_rate
-        self.bias_hidden1 += np.sum(hidden_delta1, axis=0) * learning_rate
-
-    def train(self, X, y, epochs=10000, learning_rate=0.001):
         for epoch in range(epochs):
-            output = self.forward(X)
-            self.backward(X, y, output, learning_rate)
-            if epoch % 1000 == 0:
-                loss = np.mean(np.square(y - output))
+            activations = self.forward(X)
+            self.backward(X, y, activations, learning_rate)
+            loss = binary_cross_entropy(y, activations[-1])
+            self.loss_history.append(loss)
+
+            if verbose and epoch % 100 == 0:
                 print(f"Epoch {epoch} | Loss: {loss:.4f}")
+        print("✅ Training Completed!")
 
     def predict(self, X):
-        return self.forward(X)
+        return self.forward(X)[-1]
+
+
+# 🔄 Visualization Function Using Plotly
+def plot_loss_curve(loss_history):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=list(range(len(loss_history))), y=loss_history, mode='lines', name='Loss'))
+    fig.update_layout(title='Loss Curve Over Epochs', xaxis_title='Epoch', yaxis_title='Loss')
+    fig.show()
+
+
+# 🔄 Load and Preprocess Data with Improved Debugging and Flexibility
+def load_and_preprocess_data(filepath):
+    print("🔄 Loading and Preprocessing Data...")
+    try:
+        data = pd.read_csv(filepath)
+        print(f"✅ Data Loaded Successfully! Columns: {list(data.columns)}")
+
+        # Identify all columns with object or categorical data types
+        categorical_columns = data.select_dtypes(include=["object", "category"]).columns.tolist()
+
+        # One-hot encode all categorical columns
+        data_encoded = pd.get_dummies(data, columns=categorical_columns, drop_first=True)
+
+        # Separate features and target
+        X = data_encoded.drop("num", axis=1).values
+        y = data_encoded["num"].values.reshape(-1, 1)
+
+        # Scale the features
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+
+        print(f"✅ Data Preprocessing Completed! Shape: {X.shape}")
+        return X, y
+    except FileNotFoundError:
+        print("❌ Error: Dataset file not found. Please check the file path.")
+        return None, None
+    except KeyError:
+        print("❌ Error: Target column 'num' not found in the dataset. Please ensure the dataset has the correct columns.")
+        return None, None
+    except Exception as e:
+        print(f"❌ An error occurred during preprocessing: {e}")
+        return None, None
 
 
 
-# Evaluate Model Function
-def evaluate_model(nn, X_test, y_test):
-    predictions = nn.predict(X_test)
-    predictions = (predictions > 0.5).astype(int)
-    accuracy = np.mean(predictions == y_test)
-    print(f"\n💡 Test Accuracy: {accuracy * 100:.2f}%")
-
-
-# Main Script
+# 🔄 Main Script with Debugging and Parameter Flexibility
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load_and_preprocess_data("heart.csv")
-    analyze_data_distribution(y_train, y_test)
-    smote = SMOTE(random_state=42)
-    X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-    nn = NeuralNetwork(input_size=X_train_balanced.shape[1], hidden_size1=20, hidden_size2=10, output_size=1)
-    nn.train(X_train_balanced, y_train_balanced, epochs=5000, learning_rate=0.001)
-    evaluate_model(nn, X_test, y_test)
-    log_reg = LogisticRegression(max_iter=1000)
-    log_reg.fit(X_train_balanced, y_train_balanced.flatten())
-    log_reg_accuracy = log_reg.score(X_test, y_test)
-    print(f"💡 Logistic Regression Test Accuracy: {log_reg_accuracy * 100:.2f}%")
+    print("🔄 Loading Dataset...")
+    X, y = load_and_preprocess_data("heart.csv")
+
+    if X is not None and y is not None:
+        print("🔄 Initializing and Training Neural Network...")
+        nn = NeuralNetwork(layers=[X.shape[1], 10, 5, 1], activation="leaky_relu")
+        nn.train(X, y, epochs=1000, learning_rate=0.001)
+
+        print("🔄 Plotting Loss Curve...")
+        plot_loss_curve(nn.loss_history)
+    else:
+        print("❌ Terminating Script: Data Not Loaded Properly.")
