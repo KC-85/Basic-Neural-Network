@@ -111,12 +111,26 @@ class NeuralNetwork:
         output_error = y - output  # Shape should be (samples, 1)
         output_delta = output_error * sigmoid_derivative(output)  # Shape: (samples, 1)
 
+         # Debugging print statements for output layer
+        print(f"🔍 Shape of output: {output.shape}")  # Shape of output (samples, 1)
+        print(f"🔍 Shape of output_error: {output_error.shape}")  # Should match (samples, 1)
+        print(f"🔍 Shape of output_delta: {output_delta.shape}")  # Should match (samples, 1)
+        print(f"🔍 Shape of weights_hidden2_output: {self.weights_hidden2_output.shape}")  # Should be (hidden_size2, 1)
+
         # Calculate hidden layer errors and deltas
         hidden_error2 = np.dot(output_delta, self.weights_hidden2_output.T)  # Shape should be (samples, hidden_size2)
         hidden_delta2 = hidden_error2 * relu_derivative(self.hidden_output2)
 
+         # Debugging print statements for second hidden layer
+        print(f"🔍 Shape of hidden_error2: {hidden_error2.shape}")  # Should match (samples, hidden_size2)
+        print(f"🔍 Shape of hidden_delta2: {hidden_delta2.shape}")  # Should match (samples, hidden_size2)
+
         hidden_error1 = np.dot(hidden_delta2, self.weights_hidden1_hidden2.T)  # Shape should be (samples, hidden_size1)
         hidden_delta1 = hidden_error1 * relu_derivative(self.hidden_output1)
+
+        # Debugging print statements for first hidden layer
+        print(f"🔍 Shape of hidden_error1: {hidden_error1.shape}")  # Should match (samples, hidden_size1)
+        print(f"🔍 Shape of hidden_delta1: {hidden_delta1.shape}")  # Should match (samples, hidden_size1)
 
         # Update the weights and biases
         self.weights_hidden2_output += np.dot(self.hidden_output2.T, output_delta) * learning_rate
